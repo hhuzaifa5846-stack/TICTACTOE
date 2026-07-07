@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Neon Tic-Tac-Toe</title>
+    <style>
+        :root { --blue: #00d2ff; --red: #ff0055; --bg: #050505; --bg-navy: #0a0e2a; --bg-glow: #16224f; --bg-edge: #020208; }
+        body { background: radial-gradient(ellipse at center, var(--bg-glow) 0%, var(--bg-navy) 45%, var(--bg-edge) 100%); color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #game-container { position: relative; width: 340px; height: 340px; margin-top: 20px; }
+        h1 { font-size: 3em; color: var(--blue); text-shadow: 0 0 20px var(--blue); margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 10px; background: transparent; padding: 10px; border-radius: 10px; position: relative; z-index: 2; }
+        .cell { width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; font-size: 2.6em; font-weight: 700; cursor: pointer; transition: 0.25s; border-radius: 8px; }
+        .cell:hover { background: rgba(255,255,255,0.06); }
+        .x { color: var(--red); text-shadow: 0 0 8px var(--red), 0 0 18px var(--red), 0 0 30px rgba(255,0,85,0.55); }
+        .o { color: var(--blue); text-shadow: 0 0 8px var(--blue), 0 0 18px var(--blue), 0 0 30px rgba(0,210,255,0.55); }
+
+        /* Neon tube grid divider lines — sits behind cells, above background, matching reference image's glowing # grid */
+        #grid-lines { position: absolute; top: 0; left: 0; width: 340px; height: 340px; z-index: 1; pointer-events: none; }
+        .gline { position: absolute; border-radius: 4px; }
+        .gline.v { top: 10px; width: 6px; height: 320px; background: linear-gradient(180deg, transparent, var(--blue) 12%, var(--blue) 88%, transparent); box-shadow: 0 0 8px var(--blue), 0 0 18px var(--blue), 0 0 30px rgba(0,210,255,0.5); }
+        .gline.h { left: 10px; height: 6px; width: 320px; background: linear-gradient(90deg, transparent, var(--blue) 12%, var(--blue) 88%, transparent); box-shadow: 0 0 8px var(--blue), 0 0 18px var(--blue), 0 0 30px rgba(0,210,255,0.5); }
+
+        /* Top HUD: score pill + gear + dots, matching reference screenshot */
+        #score-bar { display: flex; align-items: center; justify-content: center; gap: 14px; background: rgba(10,14,34,0.55); border: 1px solid rgba(0,210,255,0.25); padding: 8px 20px; border-radius: 40px; margin-bottom: 12px; }
+        .score-chip { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1em; background: rgba(0,0,0,0.35); }
+        .o-chip { color: var(--blue); border: 2px solid var(--blue); text-shadow: 0 0 8px var(--blue); box-shadow: 0 0 10px rgba(0,210,255,0.5); }
+        .x-chip { color: var(--red); border: 2px solid var(--red); text-shadow: 0 0 8px var(--red); box-shadow: 0 0 10px rgba(255,0,85,0.5); }
+        #score-text { font-size: 1.25em; font-weight: 700; letter-spacing: 1px; min-width: 46px; text-align: center; }
+        .gear-btn { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #888; border: 1px solid #444; cursor: pointer; font-size: 0.95em; transition: 0.3s; user-select: none; }
+        .gear-btn:hover { color: var(--blue); border-color: var(--blue); transform: rotate(70deg); }
+        .dots-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+        .dots-row .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.25); }
+
+        /* Win sparkle/flare burst at the winning line's intersection, matching reference's shine effect */
+        #win-sparkle { position: absolute; width: 56px; height: 56px; z-index: 4; pointer-events: none; display: none; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.35) 25%, transparent 65%); }
+        #win-sparkle::before, #win-sparkle::after { content: ''; position: absolute; top: 50%; left: 50%; width: 100%; height: 4px; background: linear-gradient(90deg, transparent, #fff 45%, #fff 55%, transparent); box-shadow: 0 0 14px #fff, 0 0 24px #fff; }
+        #win-sparkle::before { transform: translate(-50%, -50%); }
+        #win-sparkle::after { transform: translate(-50%, -50%) rotate(90deg); }
+        #win-sparkle.show { display: block; animation: sparklePop 0.6s ease-out forwards; }
+        @keyframes sparklePop {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.3) rotate(25deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(25deg); opacity: 0.85; }
+        }
+        #win-line { position: absolute; height: 8px; border-radius: 4px; z-index: 3; pointer-events: none; display: none; transition: all 0.5s ease; transform-origin: left center; }
+        .btn { padding: 15px 35px; margin: 10px; cursor: pointer; background: transparent; border: 2px solid var(--blue); color: white; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        .btn:hover { background: var(--blue); color: black; box-shadow: 0 0 15px var(--blue); }
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .result-msg { animation: popIn 0.5s ease-out; font-size: 3em; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <h2 id="msg" class="result-msg"></h2>
+        <div>
+            <button class="btn" onclick="Game.playAgain()">Play Again</button>
+            <button class="btn" onclick="Game.backToMenu()">Back to Menu</button>
+        </div>
+    </div>
+
+    <div id="menu" style="text-align:center;">
+        <h1>TIC-TAC-TOE</h1>
+        <button class="btn" onclick="Game.init('AI', 'Easy')">Play vs AI (Easy)</button>
+        <button class="btn" onclick="Game.init('AI', 'Hard')">Play vs AI (Hard)</button>
+        <button class="btn" onclick="Game.init('PvP')">Player vs Friend</button>
+    </div>
+
+    <div id="game" style="display:none; text-align:center;">
+        <div id="score-bar">
+            <div class="score-chip o-chip">O</div>
+            <div id="score-text">0:0</div>
+            <div class="score-chip x-chip">X</div>
+            <div class="gear-btn" onclick="Game.backToMenu()" title="Back to Menu">⚙</div>
+        </div>
+        <div class="dots-row"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div id="game-container">
+            <div id="grid-lines">
+                <div class="gline v" style="left:112px;"></div>
+                <div class="gline v" style="left:222px;"></div>
+                <div class="gline h" style="top:112px;"></div>
+                <div class="gline h" style="top:222px;"></div>
+            </div>
+            <div id="win-line"></div>
+            <div id="win-sparkle"></div>
+            <div class="grid" id="grid"></div>
+        </div>
+        <button class="btn" style="margin-top:40px;" onclick="Game.backToMenu()">Back to Menu</button>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Resume audio context on first user interaction (browsers block autoplay until then)
+        const unlockAudio = () => { if (audioCtx.state === 'suspended') audioCtx.resume(); document.removeEventListener('click', unlockAudio); };
+        document.addEventListener('click', unlockAudio);
+
+        const playSynthSound = (freq, duration, type = 'sine', vol = 0.1) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        };
+
+        // A short chord/arpeggio for win, and a descending tone for loss/draw
+        const playWinSound = () => {
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                setTimeout(() => playSynthSound(freq, 0.35, 'square', 0.08), i * 90);
+            });
+        };
+        const playLoseSound = () => {
+            [400, 300, 200].forEach((freq, i) => {
+                setTimeout(() => playSynthSound(freq, 0.3, 'sawtooth', 0.09), i * 120);
+            });
+        };
+        const playDrawSound = () => {
+            [500, 500].forEach((freq, i) => {
+                setTimeout(() => playSynthSound(freq, 0.2, 'triangle', 0.08), i * 150);
+            });
+        };
+
+        const Game = (() => {
+            let board = Array(9).fill(null), mode = 'PvP', difficulty = 'Easy', currentPlayer = 'O', gameActive = false;
+            let scoreO = 0, scoreX = 0;
+
+            const updateScoreDisplay = () => { document.getElementById('score-text').textContent = `${scoreO}:${scoreX}`; };
+
+            const init = (m, diff) => { mode = m; difficulty = diff; scoreO = 0; scoreX = 0; updateScoreDisplay(); document.getElementById('menu').style.display = 'none'; document.getElementById('game').style.display = 'block'; resetBoard(); };
+            const playAgain = () => { document.getElementById('overlay').style.display = 'none'; resetBoard(); };
+            const backToMenu = () => { document.getElementById('game').style.display = 'none'; document.getElementById('overlay').style.display = 'none'; document.getElementById('menu').style.display = 'block'; gameActive = false; };
+            
+            const showResult = (msg, isWin, isDraw = false) => {
+                const overlay = document.getElementById('overlay');
+                const msgEl = document.getElementById('msg');
+                msgEl.textContent = msg;
+                msgEl.style.color = isDraw ? '#ffffff' : (isWin ? '#00d2ff' : '#ff0055');
+                overlay.style.display = 'flex';
+                if (isDraw) playDrawSound();
+                else if (isWin) playWinSound();
+                else playLoseSound();
+            };
+
+            const render = () => {
+                const grid = document.getElementById('grid'); grid.innerHTML = '';
+                board.forEach((val, i) => {
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${val ? val.toLowerCase() : ''}`;
+                    cell.textContent = val || '';
+                    cell.onclick = () => handleMove(i);
+                    grid.appendChild(cell);
+                });
+            };
+
+            const handleMove = (i) => {
+                if (board[i] || !gameActive) return;
+                playSynthSound(currentPlayer === 'O' ? 440 : 500, 0.1, 'sine', 0.12);
+                board[i] = currentPlayer; render();
+                if (checkWinner()) return;
+                currentPlayer = (currentPlayer === 'O') ? 'X' : 'O';
+                if (mode === 'AI' && currentPlayer === 'X') { gameActive = false; setTimeout(AIMove, 500); }
+            };
+
+            const AIMove = () => {
+                let index = (difficulty === 'Easy') ? AI.easyMove(board) : AI.minimax(board, 'X').index;
+                board[index] = 'X'; playSynthSound(600, 0.1, 'sine', 0.12); gameActive = true; render();
+                if(!checkWinner()) currentPlayer = 'O';
+            };
+
+            const checkWinner = () => {
+                const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+                for (let i = 0; i < wins.length; i++) {
+                    const [a, b, c] = wins[i];
+                    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                        if (board[a] === 'O') scoreO++; else scoreX++;
+                        updateScoreDisplay();
+                        drawWinLine(i, board[a]);
+                        return true;
+                    }
+                }
+                if (!board.includes(null)) { gameActive = false; showResult("DRAW!", false, true); return true; }
+                return false;
+            };
+
+            // FIX: coordinates below are recalculated to precisely match each of the
+            // 8 win patterns (3 rows, 3 columns, 2 diagonals) against the actual
+            // 340x340 grid (100px cells + 10px gaps + 10px padding). The original
+            // coordinates were mismatched/duplicated, so a line could appear on the
+            // wrong row/column or at the wrong angle relative to which line actually won.
+            const drawWinLine = (i, winner) => {
+                const line = document.getElementById('win-line');
+                const color = winner === 'X' ? '#ff0055' : '#00d2ff';
+
+                // Center of cell index 0-8 within #game-container (0,0 = top-left of container)
+                // col centers: 60, 170, 280 | row centers: 60, 170, 280 (10 padding + 50 half-cell, +110 per step)
+                const cellCenter = idx => ({ x: 60 + (idx % 3) * 110, y: 60 + Math.floor(idx / 3) * 110 });
+
+                const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+                const [aIdx, , cIdx] = wins[i];
+                const a = cellCenter(aIdx), c = cellCenter(cIdx);
+
+                const dx = c.x - a.x, dy = c.y - a.y;
+                const segLength = Math.sqrt(dx * dx + dy * dy);
+                const overshoot = 30; // extend past each end cell's center by this much
+                const length = segLength + overshoot * 2;
+                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+                // transform-origin is "left center", so the line grows/rotates FROM its
+                // top-left corner. That anchor point must sit at the start of the
+                // (overshot) segment, not at the segment's midpoint — using the midpoint
+                // here was the bug: it worked out fine for horizontal/vertical lines
+                // (rotation of 0/90 deg doesn't visibly move the anchor) but threw the
+                // line off-center for the 45/135 deg diagonals.
+                const startX = a.x - Math.cos(angle * Math.PI / 180) * overshoot;
+                const startY = a.y - Math.sin(angle * Math.PI / 180) * overshoot;
+
+                line.style.background = color;
+                line.style.boxShadow = `0 0 12px ${color}`;
+                line.style.display = 'block';
+                line.style.top = (startY - 4) + 'px';       // -4 = half of the 8px line height, to center it
+                line.style.left = startX + 'px';
+                line.style.width = '0px';
+                line.style.transform = `rotate(${angle}deg)`;
+
+                requestAnimationFrame(() => {
+                    line.style.width = length + 'px';
+                });
+
+                // Sparkle/flare burst at the intersection point, timed to pop right as
+                // the line finishes drawing (matches #win-line's 0.5s transition).
+                const midX = (a.x + c.x) / 2, midY = (a.y + c.y) / 2;
+                const sparkle = document.getElementById('win-sparkle');
+                sparkle.style.left = midX + 'px';
+                sparkle.style.top = midY + 'px';
+                sparkle.classList.remove('show');
+                setTimeout(() => sparkle.classList.add('show'), 500);
+
+                gameActive = false;
+                setTimeout(() => showResult(winner === 'O' ? "YOU WIN!" : "YOU LOSE!", winner === 'O'), 900);
+            };
+
+            const resetBoard = () => { board = Array(9).fill(null); currentPlayer = 'O'; gameActive = true; document.getElementById('win-line').style.display = 'none'; document.getElementById('win-sparkle').classList.remove('show'); render(); };
+            return { init, backToMenu, playAgain };
+        })();
+
+        const AI = { 
+            // Depth-aware: wins scored higher when faster, losses scored higher (less bad)
+            // when slower — makes the AI finish winning lines quickly instead of dragging
+            // them out, while remaining just as unbeatable as before.
+            minimax: function(b, p, depth = 0) { 
+                const avail = b.map((v, i) => v === null ? i : null).filter(v => v !== null); 
+                if (this.checkWin(b, 'O')) return { score: depth - 10 }; 
+                if (this.checkWin(b, 'X')) return { score: 10 - depth }; 
+                if (avail.length === 0) return { score: 0 }; 
+                let moves = []; 
+                for (let i of avail) { b[i] = p; let score = (p === 'X') ? this.minimax(b, 'O', depth + 1).score : this.minimax(b, 'X', depth + 1).score; b[i] = null; moves.push({ index: i, score }); } 
+                return (p === 'X') ? moves.reduce((best, m) => m.score > best.score ? m : best) : moves.reduce((best, m) => m.score < best.score ? m : best); 
+            }, 
+            checkWin: (b, p) => [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]].some(l => l.every(i => b[i] === p)),
+            // Easy mode used to just grab the first empty cell (never blocked or attacked —
+            // trivially beatable every time). Now it takes a winning move if one exists,
+            // blocks the human's winning move if needed, and otherwise prefers strategically
+            // strong squares (center, then a random corner, then a random edge). It still
+            // has no lookahead beyond one move, so a human setting up a double-threat "fork"
+            // can beat it — keeping it noticeably easier than Hard, just no longer careless.
+            easyMove: function(board) {
+                const avail = board.map((v, i) => v === null ? i : null).filter(v => v !== null);
+                for (const i of avail) { const copy = [...board]; copy[i] = 'X'; if (this.checkWin(copy, 'X')) return i; }
+                for (const i of avail) { const copy = [...board]; copy[i] = 'O'; if (this.checkWin(copy, 'O')) return i; }
+                if (avail.includes(4)) return 4;
+                const corners = [0, 2, 6, 8].filter(i => avail.includes(i));
+                if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+                const edges = [1, 3, 5, 7].filter(i => avail.includes(i));
+                if (edges.length) return edges[Math.floor(Math.random() * edges.length)];
+                return avail[0];
+            }
+        };
+    </script>
+</body>
+</html>
